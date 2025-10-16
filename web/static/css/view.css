@@ -1,0 +1,158 @@
+/* ===== View page specific styles ===== */
+
+/* 卡片轻浮动 */
+.view-card{
+  animation: vc-float 6s ease-in-out infinite;
+}
+
+/* 警报模式：整卡片变为警示色并有脉冲光晕 */
+.view-card.alert{
+  border-color: rgba(255, 96, 96, 0.45);
+  box-shadow:
+     0 0 0 1px rgba(255, 120, 120, 0.25),
+     0 18px 40px rgba(255, 70, 70, 0.18),
+     0 0 60px rgba(255, 70, 70, 0.25);
+  animation: vc-alert-pulse 1.6s ease-in-out infinite;
+}
+
+/* 标题在警报模式下也微微抖动强调 */
+.view-card.alert .sa-title{
+  animation: vc-shake 0.8s ease-in-out infinite;
+}
+
+/* 数据瓦片 hover 微动 */
+.tile{
+  transition: transform .12s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.tile:hover{
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  border-color: rgba(255,255,255,0.18);
+}
+
+/* 小徽章（状态） */
+.badge{
+  display: inline-block;
+  min-width: 120px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: .2px;
+  transition: background .18s ease, color .18s ease, box-shadow .18s ease;
+}
+
+.badge.ok{
+  color: #06230b;
+  background: linear-gradient(180deg, #7ee787, #47cf5b);
+  box-shadow: 0 0 0 2px rgba(126,231,135,0.25);
+}
+
+.badge.warn{
+  color: #2a0d0d;
+  background: linear-gradient(180deg, #ffb1a1, #ff6a6a);
+  box-shadow: 0 0 0 2px rgba(255,106,106,0.3);
+}
+
+.badge.neutral{
+  color: #c9cfdf;
+  background: rgba(255,255,255,0.08);
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.12);
+}
+
+/* 间距工具 */
+.mt16{ margin-top: 16px; }
+
+/* ===== Animations ===== */
+@keyframes vc-float{
+  0%,100%{ transform: translateY(0) }
+  50%    { transform: translateY(-4px) }
+}
+
+@keyframes vc-alert-pulse{
+  0%  { box-shadow: 0 0 0 0 rgba(255, 80, 80, .35), 0 18px 40px rgba(255,70,70,.18); }
+  70% { box-shadow: 0 0 0 16px rgba(255, 80, 80, 0), 0 24px 48px rgba(255,70,70,.22); }
+  100%{ box-shadow: 0 0 0 0 rgba(255, 80, 80, .35), 0 18px 40px rgba(255,70,70,.18); }
+}
+
+@keyframes vc-shake{
+  0%,100%{ transform: translateX(0) }
+  25%    { transform: translateX(-1px) }
+  75%    { transform: translateX(1px) }
+}
+/* 更松的整体布局 */
+.grid-3{
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 22px;                 /* 原来更小，拉开一点 */
+  margin-top: 14px;
+}
+@media (min-width: 860px){
+  .grid-3{ grid-template-columns: repeat(3, 1fr); }
+}
+
+/* 卡片内边距更宽，让版心更呼吸 */
+.view-card{
+  padding: 44px 34px 34px;
+}
+
+/* 瓦片更透亮，间距更舒服 */
+.tile{
+  padding: 18px 16px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+/* 传感器标题高亮（加粗+渐变底线 + 闪光微动画） */
+.tile-title{
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: .3px;
+  margin-bottom: 12px;
+  position: relative;
+  padding-bottom: 6px;
+}
+.tile-title::after{
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #4da3ff, #7ee787);
+  opacity: .9;
+  filter: drop-shadow(0 0 6px rgba(126,231,135, .45));
+  animation: underlineGlow 3s ease-in-out infinite;
+}
+
+@keyframes underlineGlow{
+  0%,100%{ opacity: .7; filter: drop-shadow(0 0 6px rgba(126,231,135,.35)); }
+  50%    { opacity: 1;  filter: drop-shadow(0 0 10px rgba(77,163,255,.55)); }
+}
+
+/* 每行键值对更宽松 */
+.kv{
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px dashed rgba(255,255,255,0.08);
+  line-height: 1.6;
+}
+.kv:last-child{ border-bottom: none; }
+
+/* 状态徽章稍微加大一点，阅读更轻松 */
+.badge{
+  min-width: 180px;   /* 原120px→180px */
+  padding: 8px 12px;  /* 原6→8 */
+  font-size: 14px;
+}
+
+/* 警报模式的外框更明显，但不过分刺眼 */
+.view-card.alert{
+  border-width: 2px;
+  border-color: rgba(255, 120, 120, .55);
+  box-shadow:
+     0 0 0 2px rgba(255,120,120,.25),
+     0 22px 50px rgba(255,70,70,.22),
+     0 0 70px rgba(255,70,70,.28);
+}

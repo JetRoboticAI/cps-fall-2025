@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>View • SafeAir</title>
+  <!-- 基础通用样式 -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <!-- View 页面专属样式 -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/view.css') }}">
+</head>
+<body class="sa-bg">
+  <main class="sa-container">
+    <section id="card" class="sa-card view-card">
+      <h1 class="sa-title">Live View</h1>
+      <p class="sa-note" id="lastUpdated">Last updated: —</p>
+
+      <div class="grid-3">
+        <!-- PIR -->
+        <div class="tile">
+          <div class="tile-title">PIR (HC-SR501)</div>
+          <div class="kv">
+            <span>Status</span>
+            <b id="pirMsg" class="badge">—</b>
+          </div>
+        </div>
+
+        <!-- DHT11 -->
+        <div class="tile">
+          <div class="tile-title">DHT11</div>
+          <div class="kv"><span>Temperature (°C)</span><b id="tempC">—</b></div>
+          <div class="kv"><span>Humidity (%)</span><b id="humPct">—</b></div>
+        </div>
+
+        <!-- MQ-2 -->
+        <div class="tile">
+          <div class="tile-title">MQ-2 (Digital)</div>
+          <div class="kv">
+            <span>Status</span>
+            <b id="mq2Msg" class="badge">—</b>
+          </div>
+        </div>
+      </div>
+
+      <div class="tile mt16">
+        <div class="tile-title">Buzzer</div>
+        <div class="kv"><span>State</span><b id="buzzerMsg" class="badge">—</b></div>
+      </div>
+
+      <div class="sa-buttons mt24">
+        <a class="sa-btn sa-btn-primary" href="/">Back to Home</a>
+      </div>
+    </section>
+  </main>
+
+  <!-- 外链 JS（放在 body 末尾，确保节点已渲染） -->
+  <script src="{{ url_for('static', filename='js/view.js') }}"></script>
+</body>
+</html>

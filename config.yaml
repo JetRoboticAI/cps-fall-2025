@@ -1,0 +1,32 @@
+# =========================
+# SafeAir v1 – Device Config
+# RPi GPIO numbering: BCM
+# =========================
+
+system:
+  gpio_mode: BCM              # Always use BCM numbering
+  write_interval_ms: 3000     # main.py writes data.json every 3s
+  data_file: "../data/data.json"
+
+sensors:
+  pir:
+    pin: 17
+    label: "HC-SR501"
+
+  dht11:
+    pin: 4
+    label: "DHT11"
+
+  mq2:
+    pin: 27
+    label: "MQ-2"
+
+actuators:
+  buzzer:
+    pin: 22
+    label: "Passive Buzzer"
+
+# Optional logging (keep it minimal)
+logging:
+  level: "INFO"
+  file: "../data/agent.log"

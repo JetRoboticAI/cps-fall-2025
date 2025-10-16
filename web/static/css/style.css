@@ -1,0 +1,178 @@
+/* ---------- Base ---------- */
+:root{
+  --bg: #0b1220;
+  --card: rgba(255,255,255,0.06);
+  --border: rgba(255,255,255,0.12);
+  --text: #e6e8ee;
+  --muted: #b8bfd3;
+  --primary: #4da3ff;
+  --primary-600: #2b84e8;
+  --warn: #ffb547;
+  --warn-600: #e0952b;
+  --accent: #7ee787;
+  --accent-600: #47cf5b;
+  --shadow: 0 10px 30px rgba(0,0,0,0.35);
+  --radius: 18px;
+}
+
+*{ box-sizing: border-box; }
+html,body{ height:100%; margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; color: var(--text); }
+
+/* ---------- Background ---------- */
+.sa-bg{
+  background:
+    radial-gradient(1200px 600px at 10% 10%, #24314d 0%, rgba(36,49,77,0) 60%),
+    radial-gradient(900px 500px at 90% 20%, #203a3f 0%, rgba(32,58,63,0) 60%),
+    radial-gradient(800px 500px at 70% 90%, #2b2152 0%, rgba(43,33,82,0) 60%),
+    var(--bg);
+}
+
+/* ---------- Layout ---------- */
+.sa-container{
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 40px 16px;
+}
+
+.sa-card{
+  width: min(780px, 92vw);
+  background: var(--card);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 36px 28px 32px;
+  text-align: center;
+}
+
+/* ---------- Title ---------- */
+.sa-title{
+  margin: 0 0 22px;
+  font-size: clamp(22px, 3.2vw, 34px);
+  line-height: 1.2;
+  letter-spacing: 0.3px;
+}
+
+/* ---------- Buttons ---------- */
+.sa-buttons{
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 15px;
+  margin: 20px auto 8px;
+  width: min(520px, 100%);
+}
+
+@media (min-width: 720px){
+  .sa-buttons{ grid-template-columns: repeat(2, 1fr); }
+}
+
+.sa-btn{
+  display: inline-block;
+  padding: 14px 16px;
+  border-radius: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  color: #0c1526;
+  background: #dbe7ff;
+  border: 1px solid transparent;
+  transition: transform .08s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+  user-select: none;
+}
+
+.sa-btn:hover{ transform: translateY(-1px); }
+.sa-btn:active{ transform: translateY(0); }
+
+.sa-btn-primary{
+  background: linear-gradient(180deg, var(--primary) 0%, var(--primary-600) 100%);
+  color: #051022;
+  border-color: rgba(77,163,255,0.15);
+}
+
+.sa-btn-warn{
+  background: linear-gradient(180deg, var(--warn) 0%, var(--warn-600) 100%);
+  color: #2a1805;
+  border-color: rgba(255,181,71,0.18);
+}
+
+.sa-btn-accent{
+  background: linear-gradient(180deg, var(--accent) 0%, var(--accent-600) 100%);
+  color: #06230b;
+  border-color: rgba(126,231,135,0.22);
+}
+
+.sa-btn:focus{
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(140,180,255,0.45);
+}
+
+/* ---------- Note ---------- */
+.sa-note{
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+/* ---------- Robot Face ---------- */
+.robot-face {
+  position: relative;
+  width: 130px;
+  height: 130px;
+  background: #1c2232;
+  border: 3px solid #4da3ff;
+  border-radius: 20%;
+  margin: 0 auto 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 0 25px rgba(77,163,255,0.4);
+  animation: float 3.5s ease-in-out infinite;
+}
+
+.robot-eye {
+  position: absolute;
+  top: 38%;
+  width: 22px;
+  height: 22px;
+  background: #4da3ff;
+  border-radius: 50%;
+  animation: blink 4s infinite;
+}
+
+.robot-eye.left { left: 28%; }
+.robot-eye.right { right: 28%; }
+
+.robot-mouth {
+  position: absolute;
+  bottom: 24%;
+  width: 55px;
+  height: 10px;
+  background: #7ee787;
+  border-radius: 20px;
+  animation: smile 3s ease-in-out infinite;
+}
+
+/* 机器人眨眼动画 */
+@keyframes blink {
+  0%, 85%, 100% { transform: scaleY(1); }
+  90% { transform: scaleY(0.2); }
+}
+
+/* 微笑嘴巴动画 */
+@keyframes smile {
+  0%, 100% { transform: scaleX(1) translateY(0); }
+  50% { transform: scaleX(1.1) translateY(-2px); }
+}
+
+/* 浮动效果 */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.sa-btn.disabled {
+  opacity: 0.5;           /* 半透明 */
+  pointer-events: none;   /* 不可点击 */
+  cursor: not-allowed;    /* 鼠标变成禁止符号 */
+  background: #f5d78a;    /* 柔一点的黄色 */
+  box-shadow: none;
+}

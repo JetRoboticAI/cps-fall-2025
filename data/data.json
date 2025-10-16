@@ -1,0 +1,18 @@
+{
+  "ts": "2025-10-09T03:05:00Z",
+  "sensors": {
+    "pir": {
+      "motion": 0
+    },
+    "dht11": {
+      "temperature_c": 27.8,
+      "humidity_pct": 56
+    },
+    "mq2": {
+      "state": 0
+    }
+  },
+  "alarm": {
+    "buzzer_on": false
+  }
+}

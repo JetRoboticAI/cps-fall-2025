@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SafeAir Online Portal</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/notify.css') }}">
+  </head>
+  <body class="sa-bg">
+    <main class="sa-container">
+      <section class="sa-card">
+        <div class="robot-face">
+          <div class="robot-eye left"></div>
+          <div class="robot-eye right"></div>
+          <div class="robot-mouth"></div>
+        </div>
+
+        <h1 class="sa-title">Hi! Welcome to the SafeAir Online Portal</h1>
+
+        <div class="sa-buttons">
+          <a class="sa-btn sa-btn-primary" href="/view">View Data</a>
+          <a id="muteBtn" class="sa-btn sa-btn-warn disabled">Mute Buzzer</a>
+        </div>
+
+        <p class="sa-note">Buttons are live-linked to device state every 3s.</p>
+      </section>
+    </main>
+
+    <!-- 居中警报弹窗 -->
+    <div id="alertBackdrop" class="alert-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+      <div class="alert-modal">
+        <div class="am-body">
+          <div class="am-title"><span class="icon">⚠️</span> Harmful Gas Detected</div>
+          <div id="amMsg" class="am-msg">
+            Harmful gas detected! Please ventilate immediately and check the source.
+          </div>
+        </div>
+        <div class="am-actions">
+          <button id="amCancel" class="am-btn am-btn-secondary" type="button">Remind me later</button>
+          <button id="amConfirm" class="am-btn am-btn-primary" type="button">I Understand</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 外链 JS（放在 body 末尾，确保元素已渲染） -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  </body>
+</html>
