@@ -192,9 +192,9 @@ def main():
             finally:
                 last_dht_read = now
 
-        # ======== 核心：读取 snooze，并在 MQ-2==0 时自动清除 ========
+        # ======== 核心：读取 snooze，并在 MQ-2==1 时自动清除 ========
         snoozed = read_snooze(mute_path)
-        if mq2_state == 0 and snoozed:  # 👉 恢复旧版“0=有气体/报警后清除”
+        if mq2_state == 1 and snoozed: # 👉 恢复正常后清除
             clear_snooze(mute_path)
             snoozed = False
 
