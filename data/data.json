@@ -9,7 +9,7 @@
       "humidity_pct": 56
     },
     "mq2": {
-      "state": 0
+      "state": 1
     }
   },
   "alarm": {

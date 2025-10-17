@@ -52,8 +52,8 @@ async function refresh(){
     // MQ-2
     const mq2 = toNum(d?.sensors?.mq2?.state);
     let alertOn = false;
-    if (mq2 === 1){ badge($('mq2Msg'), 'warn', 'Harmful gas detected!'); alertOn = true; }
-    else if (mq2 === 0){ badge($('mq2Msg'), 'ok', 'No harmful gas detected'); }
+    if (mq2 === 0){ badge($('mq2Msg'), 'warn', 'Harmful gas detected!'); alertOn = true; }
+    else if (mq2 === 1){ badge($('mq2Msg'), 'ok', 'No harmful gas detected'); }
     else { badge($('mq2Msg'), 'neutral', '—'); }
 
     // Buzzer
