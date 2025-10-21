@@ -10,7 +10,7 @@ CONFIG_PATH = "config.yaml"
 USE_ACTIVE_BUZZER = True
 BUZZER_ACTIVE_HIGH = False
 
-# ---------- 工具函数 ----------
+# tool functions
 def iso_utc_now():
     return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
@@ -36,7 +36,7 @@ def safe_int(v, default=None):
     except Exception:
         return default
 
-# ---------- 读取/清除 snooze 标志 ----------
+# read and clear the snooze status from mute.json
 def read_snooze(path) -> bool:
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -51,7 +51,7 @@ def clear_snooze(path):
     except Exception:
         pass
 
-# ---------- Buzzer 类 ----------
+# Buzzer function
 class Buzzer:
     def __init__(self, pin: int, active_high=True):
         self.pin = pin
@@ -99,7 +99,7 @@ class Buzzer:
             self.pwm = None
         GPIO.output(self.pin, GPIO.LOW if self.active_high else GPIO.HIGH)
 
-# ---------- 旋律 ----------
+# Tunes
 TUNE_GAS = [
     (784, 350), (0, 150),
     (880, 350), (0, 150),
@@ -117,9 +117,8 @@ TUNE_URGENT = [
     (1865, 250)
 ]
 
-# ---------- 主程序 ----------
+# Main program
 def main():
-    # 读取配置
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
@@ -130,25 +129,24 @@ def main():
     data_path = cfg["system"]["data_file"]
     interval  = float(cfg["system"]["write_interval_ms"]) / 1000.0
 
-    # 让 mute.json 放在 data.json 同目录
+    # put mute and data under the same directory
     mute_path = os.path.join(os.path.dirname(data_path), "mute.json")
 
     # GPIO
     GPIO.setmode(GPIO.BCM)
-    # 👉 和旧版一致：不强制上下拉，避免和模块板载电路冲突
     GPIO.setup(pir_pin, GPIO.IN)
     GPIO.setup(mq2_pin, GPIO.IN)
 
     buzzer = Buzzer(buz_pin, active_high=BUZZER_ACTIVE_HIGH)
 
-    # DHT11：优先用正常模式，失败则回退 use_pulseio=False，并做预热
+    # DHT11
     try:
         dhtDevice = adafruit_dht.DHT11(getattr(board, f"D{dht_pin}"))
     except Exception:
         dhtDevice = adafruit_dht.DHT11(getattr(board, f"D{dht_pin}"), use_pulseio=False)
-    time.sleep(2.0)  # 👉 预热
+    time.sleep(2.0)  # time for DHT11 to warm up (set up)
 
-    # DHT 节流缓存（至少 2 秒读一次）
+    # DHT throttling cache (at least 2 seconds read once)
     last_dht_read = 0.0
     last_temp, last_hum = None, None
 
@@ -169,13 +167,12 @@ def main():
     print("✅ SafeAir main loop started. (BCM numbering)")
 
     while True:
-        # 原始读数
         raw_pir = int(GPIO.input(pir_pin))
         raw_mq2 = int(GPIO.input(mq2_pin))
         pir_motion = raw_pir
         mq2_state  = raw_mq2
 
-        # ------- DHT11：≥2s 才读，一旦失败沿用上次 -------
+        # DHT11 read (throttled)
         now = time.monotonic()
         temp, humidity = last_temp, last_hum
         if now - last_dht_read >= 2.0:
@@ -186,19 +183,18 @@ def main():
                     temp, humidity = _t, _h
                     last_temp, last_hum = temp, humidity
             except Exception as e:
-                # 常见校验错误，忽略即可
                 # print("⚠️ DHT11 read failed:", e)
                 pass
             finally:
                 last_dht_read = now
 
-        # ======== 核心：读取 snooze，并在 MQ-2==1 时自动清除 ========
+        # read snooze and clear it when mq2_state recovers to 1
         snoozed = read_snooze(mute_path)
-        if mq2_state == 1 and snoozed: # 👉 恢复正常后清除
+        if mq2_state == 1 and snoozed:
             clear_snooze(mute_path)
             snoozed = False
 
-        # ======== 报警逻辑：恢复旧版极性 —— mq2==0 才报警 ========
+        # Buzzer starts to alarm when mq2_state == 0 and not snoozed
         buzzer_on = False
         if mq2_state == 0 and not snoozed:
             buzzer_on = True
@@ -211,7 +207,7 @@ def main():
         else:
             buzzer.off()
 
-        # 写数据
+        # write data
         data = {
             "ts": iso_utc_now(),
             "sensors": {
@@ -228,9 +224,9 @@ def main():
             }
         }
         atomic_write_json(data_path, data)
-        # print(data)  # 需要在终端观察再打开
+        print(data)
 
-        time.sleep(max(0.2, interval))  # 👉 最小 0.2s，别太密
+        time.sleep(max(0.2, interval))  # main loop interval
 
 def cleanup_and_exit(buzzer, dhtDevice, code=0):
     try:
