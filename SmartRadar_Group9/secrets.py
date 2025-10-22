@@ -1,0 +1,3 @@
+# secrets.py
+DEVICE_ID  = "05e75115-cebd-4930-890c-9ef883236045"
+SECRET_KEY = "D?su!es2xTHO2W9Q8M!GAg?dc"
