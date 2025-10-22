@@ -35,7 +35,7 @@ The overall architecture of the **Smart Watering System** is shown below:
 | [**Capacitive Soil Moisture Sensor**](https://www.amazon.ca/dp/B07H3P1NRM) | 4        | Analog output soil sensors (0–3 V).           |
 | [**ADS1115 16-bit ADC (I²C)**](https://www.amazon.ca/dp/B0BXWJFCVJ) | 1        | Converts analog signals to digital via I²C.   |
 | [**Mini  Water Pump**](https://www.amazon.ca/dp/B095VSB54J)  | 4        | Driven by the relay for watering.             |
-| [**Breadboard Power Supply**]()                              | 1        | Provides 5 V rail for sensors and relays.     |
+| [**Breadboard Power Supply**](https://www.amazon.ca//dp/B0DNMMJ57Q)                              | 1        | Provides 5 V rail for sensors and relays.     |
 | [**T-Type GPIO Extension Module**](https://www.amazon.ca/dp/B07MX5T3LM) | 1        | GPIO breakout for Raspberry Pi to breadboard. |
 | [**Jumper Wires + Breadboard**](https://www.amazon.ca/dp/B09Y1LTF1R) | —        | For all connections.                          |
 
