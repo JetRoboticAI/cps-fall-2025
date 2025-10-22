@@ -1,0 +1,55 @@
+{
+  "AUTO_ENABLED": false,
+  "AVG_READINGS": 4,
+  "THRESHOLD": 20,
+  "AUTO_INTERVAL_SEC": 120,
+  "AUTO_WATER_SEC": 1,
+  "PORT": 1234,
+  "FIREBASE_DB_BASE": "https://watersystem-707cf-default-rtdb.firebaseio.com",
+  "SENSORS": [
+    {
+      "channel": 0,
+      "v_dry": 2.2,
+      "v_wet": 0.9
+    },
+    {
+      "channel": 1,
+      "v_dry": 2.2,
+      "v_wet": 0.9
+    },
+    {
+      "channel": 2,
+      "v_dry": 2.2,
+      "v_wet": 0.9
+    },
+    {
+      "channel": 3,
+      "v_dry": 2.2,
+      "v_wet": 0.9
+    }
+  ],
+  "PUMPS": [
+    {
+      "channel": 1,
+      "gpio_pin": 17
+    },
+    {
+      "channel": 2,
+      "gpio_pin": 18
+    },
+    {
+      "channel": 3,
+      "gpio_pin": 15
+    },
+    {
+      "channel": 4,
+      "gpio_pin": 14
+    }
+  ],
+  "PLANT_THRESHOLDS": [
+    30.0,
+    30.0,
+    30.0,
+    30.0
+  ]
+}

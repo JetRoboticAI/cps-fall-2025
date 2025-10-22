@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8"/>
+  <title>Plant Dashboard</title>
+
+  <!-- UI layer: Tailwind + daisyUI for quick, responsive components -->
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>document.documentElement.setAttribute('data-theme', 'emerald');</script>
+
+  <!-- Charts: Chart.js + date-fns adapter for time-series plotting -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+
+  <style>
+    /* Keeps the top bar visible when scrolling the page */
+    .sticky-top { position: sticky; top: 0; z-index: 20; }
+  </style>
+</head>
+<body class="bg-base-200 min-h-screen">
+<div class="max-w-7xl mx-auto p-6 space-y-6">
+
+  <!-- Top bar: back button (detail view only) + auto-watering control -->
+  <div class="sticky-top flex items-center justify-between">
+    <button id="backBtn" class="btn btn-sm btn-outline hidden">← Return</button>
+
+    <div id="autoControl" class="flex items-center gap-3">
+      <button id="autoToggleBtn" class="btn btn-outline btn-sm">Loading…</button>
+      <span id="autoStatusText" class="text-sm opacity-70"></span>
+    </div>
+  </div>
+
+  <!-- Home grid: four plant cards -->
+  <section id="gridView" class="space-y-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" id="plantCards"></div>
+  </section>
+
+  <!-- Detail view: per-plant stats + chart + threshold editor -->
+  <section id="detailView" class="hidden space-y-4">
+    <div id="infoBox" class="card bg-base-100 shadow">
+      <div class="card-body">
+        <div class="flex items-center justify-between gap-3">
+          <h2 id="detailTitle" class="card-title">Plant — Moisture Overview</h2>
+          <div class="flex items-center gap-2">
+            <!-- Refresh only the latest record from the database (no sensor read here) -->
+            <button id="showNowBtn" class="btn btn-outline" disabled>Refresh humidity</button>
+            <button id="waterBtn" class="btn btn-primary" disabled>Water</button>
+          </div>
+        </div>
+
+        <div class="stats stats-vertical lg:stats-horizontal shadow bg-base-100 mt-2">
+          <div class="stat">
+            <div class="stat-title">Current humidity</div>
+            <div id="infoHumidity" class="stat-value">--%</div>
+            <!-- Display the raw database timestamp (trimmed to minute; no timezone conversion) -->
+            <div id="infoTime" class="stat-desc"></div>
+          </div>
+        </div>
+
+        <div class="form-control mt-3">
+          <label class="label">
+            <span class="label-text">Auto threshold for this plant (%)</span>
+          </label>
+          <div class="join">
+            <input id="thrInput" type="number" min="0" max="100" step="0.5"
+                   class="input input-bordered join-item w-32" placeholder="30"/>
+            <button id="thrSaveBtn" class="btn btn-outline join-item">Save</button>
+          </div>
+          <p class="text-xs opacity-70 mt-1">
+            Low threshold to trigger auto watering. Current: <b id="thrCurrent">--%</b>
+            <span id="thrSaved" class="ml-2 text-success hidden">Saved ✓</span>
+          </p>
+        </div>
+
+        <div id="infoStatus" class="mt-3 text-sm"></div>
+      </div>
+    </div>
+
+    <div class="card bg-base-100 shadow">
+      <div class="card-body">
+        <canvas id="plantChart" class="mt-1 h-96"></canvas>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  /**
+   * APPLICATION OVERVIEW
+   * --------------------
+   * - UI shows a grid of 4 plants; clicking a card opens the detail view.
+   * - Historical humidity is READ-ONLY from Firebase Realtime Database:
+   *     history/plant_X = [ [ISO_with_offset, humidity_pct, ...optional fields], ... ]
+   * - Backend REST endpoints (implemented by your server):
+   *     GET  /thresholds             -> { thresholds: [p1, p2, p3, p4] }
+   *     POST /thresholds/:plantId    -> body { threshold: number } ; persists per-plant threshold
+   *     GET  /auto                   -> { enabled: boolean } ; auto-watering overall switch
+   *     POST /auto                   -> body { enabled: boolean } ; update switch
+   *     POST /pump/:pumpId           -> body { duration: seconds } ; one-shot pump activation
+   *
+   * IMPORTANT TIMESTAMP NOTE:
+   * - We render the database's raw ISO string (trimmed to "YYYY-MM-DD HH:MM") for labels/status,
+   *   with no timezone conversion. For the chart only, we convert the raw ISO into Date objects.
+   */
+
+  /* ============================================
+   * CONFIGURATION: static plant metadata (id,img,pump,sensor)
+   * ============================================ */
+  const plants = [
+    {id: 1, name: 'Peashooter', img: 'img/plant1.jpg', pump: 1, sensor: 0},
+    {id: 2, name: 'Sunflower', img: 'img/plant2.jpg', pump: 2, sensor: 1},
+    {id: 3, name: 'Cabbage-pult', img: 'img/plant3.jpg', pump: 3, sensor: 2},
+    {id: 4, name: 'Kernel-pult', img: 'img/plant4.jpg', pump: 4, sensor: 3},
+  ];
+
+  // Firebase base URL (read-only usage in this page)
+  const FIREBASE_DB_BASE = "https://watersystem-707cf-default-rtdb.firebaseio.com";
+  const PLANT_KEYS = {1: "plant_1", 2: "plant_2", 3: "plant_3", 4: "plant_4"};
+
+  /**
+   * Utility: trim a raw ISO timestamp to "YYYY-MM-DD HH:MM" WITHOUT timezone conversion.
+   * Example: "2025-10-19T09:03:27-04:00" -> "2025-10-19 09:03"
+   */
+  function formatDbTime(raw) {
+    const s = String(raw || "");
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/);
+    return m ? `${m[1]} ${m[2]}` : s;
+  }
+
+  /**
+   * Perform a GET against Firebase Realtime Database, optionally cache-busting.
+   * - path: DB path relative to root (without ".json")
+   * - nocache: when true, appends a timestamp query to bust caches
+   */
+  async function dbGet(path, {nocache=false} = {}) {
+    const url = `${FIREBASE_DB_BASE}/${path}.json${nocache ? `?nc=${Date.now()}` : ''}`;
+    const res = await fetch(url, {cache: "no-store"});
+    if (!res.ok) throw new Error(`GET ${path} failed`);
+    return res.json();
+  }
+
+  /* =======================================================
+   * THRESHOLDS & AUTO SWITCH: persisted via backend REST API
+   * ======================================================= */
+  let thresholds = [];
+
+  /** Fetch all plant watering thresholds from backend and cache locally. */
+  async function fetchThresholds() {
+    const res = await fetch('/thresholds', {cache: 'no-store'});
+    if (!res.ok) throw new Error('GET /thresholds failed');
+    const data = await res.json();
+    thresholds = Array.isArray(data.thresholds) ? data.thresholds.slice() : [];
+    return data;
+  }
+
+  /** Save a single plant's threshold to backend(config.json). */
+  async function saveThreshold(plantId, value) {
+    const res = await fetch(`/thresholds/${plantId}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({threshold: Number(value)})
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.status === 'error') throw new Error(data.message || 'save failed');
+    return data;
+  }
+
+  /** Fetch global auto-watering status and sync the toggle UI. */
+  async function fetchAutoStatus() {
+    const res = await fetch('/auto', {cache: 'no-store'});
+    if (!res.ok) throw new Error('GET /auto failed');
+    const data = await res.json();
+    updateAutoButton(data.enabled);
+  }
+
+  /** Update toggle button accessibility state + label. */
+  function updateAutoButton(enabled) {
+    const btn = document.getElementById('autoToggleBtn');
+    const txt = document.getElementById('autoStatusText');
+    btn.textContent = enabled ? 'Disable Auto Watering' : 'Enable Auto Watering';
+    txt.textContent = enabled ? '(Enabled)' : '(Disabled)';
+    btn.dataset.enabled = enabled ? '1' : '0';
+    btn.ariaPressed = String(enabled);
+  }
+
+  // Toggle handler: POST /auto with the inverse of current state
+  document.getElementById('autoToggleBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('autoToggleBtn');
+    const enabled = btn.dataset.enabled === '1';
+    try {
+      const res = await fetch('/auto', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        cache: 'no-store',
+        body: JSON.stringify({enabled: !enabled})
+      });
+      const data = await res.json();
+      if (!res.ok || data.status === 'error') alert('Failed: ' + (data.message || res.statusText));
+      else updateAutoButton(Boolean(data.enabled));
+    } catch (e) { alert('Network error: ' + e.message); }
+  });
+
+  /* ===========================================================
+   * HISTORY LOADING & RENDERING (display raw timestamps in cards)
+   * =========================================================== */
+  // plantData[plantId] = [{ raw: string, humidity: number }, ...]
+  const plantData = {1: [], 2: [], 3: [], 4: []};
+  // lastDrawKey[plantId] = the raw timestamp of the newest point drawn (change-detection)
+  const lastDrawKey = {1: null, 2: null, 3: null, 4: null};
+
+  /**
+   * Convert a Firebase array node into a sorted list of { raw, humidity }:
+   * - Keeps the raw timestamp string "as-is" for labels (no TZ conversion).
+   * - Parses humidity as Number.
+   * - Sorts lexicographically by raw ISO; ISO strings with offsets sort correctly.
+   */
+  function normalizeArrayHistory(node) {
+    const rows = [];
+    if (!Array.isArray(node)) return rows;
+    for (const item of node) {
+      if (!Array.isArray(item) || item.length < 2) continue;
+      const raw = String(item[0]);          // keep as-is for labels
+      const pct = Number(item[1]);
+      if (!isNaN(pct)) rows.push({raw, humidity: pct});
+    }
+    rows.sort((a, b) => (a.raw < b.raw ? -1 : a.raw > b.raw ? 1 : 0));
+    return rows;
+  }
+
+  /**
+   * Load one plant's history from Firebase with cache-busting. If the newest
+   * timestamp hasn't changed since last draw, skip updating local cache unless forced.
+   */
+  async function loadPlantFromFirebase(plantId, {force=false} = {}) {
+    const key = PLANT_KEYS[plantId];
+    if (!key) return;
+    const node = await dbGet(`history/${key}`, {nocache: true}); // always bypass caches
+    const rows = normalizeArrayHistory(node);
+    const last = rows[rows.length - 1];
+    const currentKey = last ? last.raw : null;    // use raw timestamp as a version key
+    if (!force && lastDrawKey[plantId] === currentKey) return;
+    lastDrawKey[plantId] = currentKey;
+    plantData[plantId] = rows;
+  }
+
+  /** Load all plants from Firebase, then refresh cards and (if open) the detail chart. */
+  async function refreshFromFirebase() {
+    await Promise.all(plants.map(p => loadPlantFromFirebase(p.id, {force:true})));
+    renderPlantCards();
+    const detailVisible = !document.getElementById('detailView').classList.contains('hidden');
+    if (detailVisible) renderPlantChart(selectedId);
+  }
+
+  /** Look up the current threshold for a plant, falling back to a default if missing. */
+  function getThresholdFor(plantId, fallback = 30) {
+    const idx = plants.findIndex(p => p.id === plantId);
+    const v = (idx >= 0 && thresholds[idx] != null) ? Number(thresholds[idx]) : fallback;
+    return Number.isFinite(v) ? v : fallback;
+  }
+
+  /**
+   * Map a humidity reading to a human-readable status + CSS class, using
+   * the per-plant threshold with a ±10% comfort band.
+   */
+  function getPlantStatus(h, plantId) {
+    if (typeof h !== 'number' || isNaN(h)) return {text: 'Nodata', cls: 'badge'};
+    const thr = getThresholdFor(plantId, 30);
+    const b1 = thr - 10, b2 = thr + 10;
+    if (h < b1) return {text: 'Dry - watering recommended', cls: 'badge badge-error'};
+    if (h < thr) return {text: 'Slightly dry - Concern', cls: 'badge badge-warning'};
+    if (h <= b2) return {text: 'Suitable - in good condition', cls: 'badge badge-success'};
+    if (h > b2) return {text: 'Wet - reduce watering', cls: 'badge badge-warning'};
+    return {text: 'Excessive wetness', cls: 'badge badge-error'};
+  }
+
+  /** Update the 4 cards with latest humidity, trimmed timestamp, and status. */
+  function renderPlantCards() {
+    plants.forEach(p => {
+      const humEl = document.getElementById(`plantHum${p.id}`);
+      const timeEl = document.getElementById(`plantTime${p.id}`);
+      const statusEl = document.getElementById(`plantStatus${p.id}`);
+      if (!humEl || !timeEl || !statusEl) return;
+
+      const rows = plantData[p.id] || [];
+      const last = rows[rows.length - 1];
+      const h = last ? Number(last.humidity) : NaN;
+      humEl.textContent = (typeof h === 'number' && !isNaN(h)) ? h.toFixed(1) + '%' : '--%';
+      timeEl.textContent = last ? formatDbTime(last.raw) : ''; // ← show raw DB time (trimmed)
+      const status = getPlantStatus(h, p.id);
+      statusEl.textContent = status.text;
+      statusEl.className = status.cls + ' mt-2';
+    });
+  }
+
+  /* =======================
+   * CHART: single-series line
+   * ======================= */
+  let plantChart;
+  function initChart() {
+    const ctx = document.getElementById('plantChart').getContext('2d');
+    plantChart = new Chart(ctx, {
+      type: 'line',
+      data: {datasets: [{label: 'Humidity (%)', data: [], tension: 0.25, fill: true, pointRadius: 0}]},
+      options: {
+        responsive: true,
+        interaction: {mode: 'index', intersect: false},
+        plugins: {
+          title: {display: false},
+          legend: {display: false},
+          decimation: {enabled: true, algorithm: 'lttb', samples: 1000}
+        },
+        scales: {
+          x: {
+            type: 'time',
+            time: {tooltipFormat: 'yyyy-MM-dd HH:mm', displayFormats: {minute: 'HH:mm', hour: 'HH:mm'}},
+            ticks: {autoSkip: true, maxRotation: 0}
+          },
+          y: { title: {display: true, text: 'Humidity (%)'}, suggestedMin: 0, suggestedMax: 100}
+        },
+        elements: {point: {hoverRadius: 6}}
+      }
+    });
+  }
+
+  /** Update the info block in detail view to reflect the latest reading + status. */
+  function updateDetailInfo(meta) {
+    const rows = plantData[meta.id] || [];
+    const last = rows[rows.length - 1];
+    const h = last ? last.humidity : NaN;
+    document.getElementById('detailTitle').textContent = `${meta.name} — Moisture Overview`;
+    document.getElementById('infoHumidity').textContent =
+      (typeof h === 'number' && !isNaN(h)) ? h.toFixed(1) + '%' : '--%';
+    document.getElementById('infoTime').textContent = last ? formatDbTime(last.raw) : ''; // raw time (trimmed)
+    const status = getPlantStatus(h, meta.id);
+    document.getElementById('infoStatus').innerHTML = `<span class="${status.cls}">${status.text}</span>`;
+  }
+
+  /**
+   * Render/re-render the time-series chart for a given plant:
+   * - Convert the raw ISO strings into Date objects for Chart.js only.
+   */
+  function renderPlantChart(plantId) {
+    const meta = plants.find(p => p.id === plantId);
+    if (!meta) return;
+    const rows = plantData[plantId] || [];
+    const lineData = rows.map(r => ({ x: new Date(r.raw), y: r.humidity }));
+    plantChart.data.datasets[0].data = lineData;
+    plantChart.update();
+    updateDetailInfo(meta);
+  }
+
+  /* ==================================================
+   * INTERACTIONS: pump trigger + "refresh latest" button
+   * ================================================== */
+  /** POST to backend to trigger a pump for N seconds. */
+  async function activatePumpOnce(pumpId, seconds) {
+    const res = await fetch(`/pump/${pumpId}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({duration: seconds})
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(j.msg || 'pump error');
+    return j;
+  }
+
+  /** Wire the "Refresh humidity" button: pull latest history (DB only) and re-render. */
+  function wireShowNowButton(meta) {
+    const btn = document.getElementById('showNowBtn');
+    btn.disabled = false;
+    btn.onclick = async () => {
+      try {
+        btn.disabled = true;
+        btn.textContent = 'Refreshing…';
+        // Fetch only the newest record from the DB with cache-busting (handled in loader)
+        await loadPlantFromFirebase(meta.id, {force: true});
+        renderPlantChart(meta.id);
+        renderPlantCards();
+        btn.textContent = 'Refresh humidity';
+      } catch (e) {
+        console.error(e);
+        btn.textContent = 'Refresh failed';
+        setTimeout(() => { btn.textContent = 'Refresh humidity'; btn.disabled = false; }, 1200);
+        return;
+      }
+      btn.disabled = false;
+    };
+  }
+
+  /** Wire the "Water" button: one-shot 3s activation, with basic UI feedback. */
+  function wireWaterButton(meta) {
+    const btn = document.getElementById('waterBtn');
+    btn.disabled = false;
+    btn.textContent = 'Water';
+    btn.onclick = async () => {
+      try {
+        btn.disabled = true;
+        btn.classList.add('btn-disabled');
+        btn.textContent = 'Watering…';
+        await activatePumpOnce(meta.pump, 3);
+        btn.textContent = 'Water ✓';
+      } catch (e) {
+        btn.textContent = 'Watering failed';
+        setTimeout(() => {
+          btn.textContent = 'Water';
+          btn.disabled = false;
+          btn.classList.remove('btn-disabled');
+        }, 1500);
+        return;
+      }
+      setTimeout(() => {
+        btn.textContent = 'Water';
+        btn.disabled = false;
+        btn.classList.remove('btn-disabled');
+      }, 2000);
+    };
+  }
+
+  /* ==========================================
+   * ROUTING: switch between grid and detail view
+   * ========================================== */
+  let selectedId = 1;
+
+  /**
+   * Open detail view for a plant:
+   * - Loads its history from Firebase (read-only),
+   * - Renders chart + info block,
+   * - Wires action buttons,
+   * - Loads thresholds and initializes the editor.
+   */
+  async function openDetail(id) {
+    selectedId = id;
+    document.getElementById('gridView').classList.add('hidden');
+    document.getElementById('detailView').classList.remove('hidden');
+    document.getElementById('backBtn').classList.remove('hidden');
+    const meta = plants.find(p => p.id === id);
+
+    await loadPlantFromFirebase(id, {force:true}); // history-only read
+    renderPlantChart(id);
+    wireWaterButton(meta);
+    wireShowNowButton(meta);
+
+    try {
+      if (!thresholds.length) await fetchThresholds();
+      const idx = plants.findIndex(p => p.id === id);
+      const cur = (idx >= 0 && thresholds[idx] != null) ? Number(thresholds[idx]) : 30;
+      document.getElementById('thrInput').value = isFinite(cur) ? cur : 30;
+      document.getElementById('thrCurrent').textContent = isFinite(cur) ? cur.toFixed(1) + '%' : '--%';
+    } catch (e) {
+      console.warn('fetchThresholds failed', e);
+    }
+
+    // Save handler for per-plant threshold editor
+    document.getElementById('thrSaveBtn').onclick = async () => {
+      let v = Number(document.getElementById('thrInput').value);
+      if (!isFinite(v)) { alert('Invalid number'); return; }
+      v = Math.max(0, Math.min(100, v));
+      const btn = document.getElementById('thrSaveBtn');
+      const badge = document.getElementById('thrSaved');
+
+      btn.disabled = true; btn.textContent = 'Saving…';
+      try {
+        await saveThreshold(id, v);
+        const idx = plants.findIndex(p => p.id === id);
+        if (idx >= 0) thresholds[idx] = v;
+        document.getElementById('thrCurrent').textContent = v.toFixed(1) + '%';
+        if (badge) { badge.classList.remove('hidden'); setTimeout(() => badge.classList.add('hidden'), 900); }
+        renderPlantCards(); updateDetailInfo(meta);
+        btn.textContent = 'Saved ✓';
+        setTimeout(() => { btn.textContent = 'Save'; btn.disabled = false; }, 700);
+      } catch (e) {
+        alert('Save failed: ' + e.message);
+        btn.textContent = 'Save'; btn.disabled = false;
+      }
+    };
+  }
+
+  /** Return to the grid view from detail view. */
+  function backToGrid(e) {
+    e?.preventDefault();
+    document.getElementById('detailView').classList.add('hidden');
+    document.getElementById('gridView').classList.remove('hidden');
+    document.getElementById('backBtn').classList.add('hidden');
+  }
+
+  /* =========================
+   * BOOTSTRAP: build UI and load data
+   * ========================= */
+  /**
+   * Build the 4 clickable plant cards once (static structure).
+   * Data cells will be updated by renderPlantCards().
+   */
+  function buildPlantCardsOnce() {
+    const wrap = document.getElementById('plantCards');
+    wrap.innerHTML = '';
+    plants.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'card bg-base-100 shadow hover:shadow-lg cursor-pointer transition';
+      card.id = `plantCard${p.id}`;
+      card.innerHTML = `
+        <figure class="aspect-[4/3] bg-base-200 overflow-hidden">
+          <img src="${p.img}" alt="${p.name}" class="object-cover w-full h-full"
+               onerror="this.src='https://picsum.photos/600/400?random=${p.id}'">
+        </figure>
+        <div class="card-body">
+          <h2 class="card-title">${p.name}</h2>
+          <div class="stats stats-vertical lg:stats-horizontal shadow bg-base-100">
+            <div class="stat">
+              <div class="stat-title">Latest humidity</div>
+              <div class="stat-value" id="plantHum${p.id}">--%</div>
+              <div class="stat-desc" id="plantTime${p.id}"></div>
+            </div>
+          </div>
+          <div class="badge mt-2" id="plantStatus${p.id}">Loading...</div>
+        </div>`;
+      card.addEventListener('click', () => openDetail(p.id));
+      wrap.appendChild(card);
+    });
+  }
+
+  // Wire the back button and initialize the app on DOMContentLoaded
+  document.getElementById('backBtn')?.addEventListener('click', backToGrid);
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    buildPlantCardsOnce();
+    initChart();
+
+    // Initial data load: history (read-only), thresholds (backend), auto status
+    await refreshFromFirebase();
+    try { await fetchThresholds(); } catch (e) { console.warn(e); }
+    fetchAutoStatus().catch(console.warn);
+  });
+</script>
+</body>
+</html>
