@@ -1,0 +1,167 @@
+<!-- Frontend HTML for Home Monitor UI -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>G10 Home Monitor Live Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+    .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+    .title { font-weight: 700; margin-bottom: 8px; }
+    .value { font-size: 28px; font-weight: 700; }
+    .ok { color: #059669; } .warn { color: #d97706; } .bad { color: #dc2626; }
+    #log { height: 200px; overflow: auto; background:#0b1020; color:#d1d5db; padding:12px; border-radius:8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    button { padding: 8px 12px; border-radius: 8px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; }
+    button:hover { background: #f9fafb; }
+    img { max-width: 100%; border-radius: 10px; border: 1px solid #e5e7eb; }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    input[type=text]{ padding:8px; border:1px solid #d1d5db; border-radius:8px; width:320px;}
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; background:#f3f4f6;}
+    .pill.ok { background:#dcfce7; color:#065f46; }
+    .pill.bad { background:#fee2e2; color:#991b1b; }
+    .muted { color:#6b7280; }
+  </style>
+</head>
+<body>
+  <h1>G10 Home Monitor Live Dashboard</h1>
+
+  <div class="row" style="margin:16px 0;">
+    <label>G10 API Base:</label>
+    <input id="apiBase" type="text" value="http://PI_IP:5000" />
+    
+    <button id="btnApply">Apply</button>
+    <button id="btnReset" title="Reset buzzer & LED on Pi">Reset Devices</button>
+    <button id="btnMock" title="Simulate a sound trigger from API">Mock Trigger</button>
+    
+    <span id="status" class="pill">Idle</span>
+    <span id="alarmBadge" class="pill">Alarm: Unknown</span>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="title">Buzzer</div>
+      <div id="buzzerText" class="value ok">Idle</div>
+      <div class="muted">Last event: <span id="buzzerTime">--:--:--</span></div>
+    </div>
+
+    <div class="card">
+      <div class="title">Latest Photo</div>
+      <img id="photo" alt="No photo yet" src="">
+      <div class="muted">Updated: <span id="photoTime">--:--:--</span></div>
+    </div>
+  </div>
+
+  <h3>Live Log</h3>
+  <div id="log"></div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    // Load saved API base from localStorage, or init with the default value in the input box
+    let BASE = localStorage.getItem('g10_api_base') || $('apiBase').value;
+    $('apiBase').value = BASE;
+
+    // Function to set text and color of `status` pill 
+    function setStatus(text, ok=true){
+      $('status').innerText = text;
+      $('status').className = 'pill ' + (ok ? 'ok' : 'bad');
+    }
+
+    // Function to set text and color of alarm badge (`alarmBadge`) pill 
+    function setAlarmBadge(active){
+      const el = $('alarmBadge');
+      if (active){
+        el.innerText = 'Alarm: ACTIVE';
+        el.className = 'pill bad';
+      } else {
+        el.innerText = 'Alarm: idle';
+        el.className = 'pill ok';
+      }
+    }
+
+    function appendLog(line){
+      const el = $('log');
+      el.innerText += `[${new Date().toLocaleTimeString()}] ${line}\n`;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    async function getJSON(url, opts){
+      try{
+        const r = await fetch(url, opts);
+        if(!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+        return await r.json();
+      }catch(e){
+        appendLog('HTTP error: ' + e.message);
+        setStatus('Error', false);
+        throw e;
+      }
+    }
+
+    // Function to refresh status from API and update the entire UI
+    async function refreshStatus(){
+      try{
+        const data = await getJSON(`${BASE}/api/status`);
+        // alarm_active: true=Keep alarming; buzzer: 0=buzz, 1=slient
+        const isAlarm = !!data.alarm_active || data.buzzer === 1;
+        // texts in the `grid` showing buzzer status
+        $('buzzerText').innerText = isAlarm ? 'Buzzing (ALARM)' : 'Idle';
+        $('buzzerText').className = 'value ' + (isAlarm ? 'bad' : 'ok');
+        $('buzzerTime').innerText = data.last_event || '--:--:--';
+        setAlarmBadge(isAlarm);
+        // grid for showing lastly captured photo
+        if (data.last_photo_url){
+          $('photo').src = `${BASE}${data.last_photo_url}?t=${Date.now()}`;
+          $('photoTime').innerText = data.last_event || '--:--:--';
+        }
+
+        // logs
+        $('log').innerText = (data.logs || [])
+          .map(x => `[${x.time}] ${x.level}: ${x.msg}`).join('\n');
+        $('log').scrollTop = $('log').scrollHeight;
+
+        setStatus('OK', true);
+      }catch(e){
+        // Already recorded from getJSON
+      }
+    }
+    
+    // Function to reset hardware devices via API call
+    async function resetDevices(){
+      try{
+        await getJSON(`${BASE}/api/reset`, { method: 'POST' });
+        appendLog('Devices reset via API');
+      } finally {
+        // Refresh status of the UI, to ensure it shows `Idle`
+        refreshStatus();
+      }
+    }
+    
+    // Function to mock a sound trigger via API call
+    async function mockTrigger(){
+      try{
+        await getJSON(`${BASE}/api/mock_trigger`, { method: 'POST' });
+        appendLog('Mock trigger sent');
+      } finally {
+        // Refresh status of UI right after the mock trigger
+        refreshStatus();
+      }
+    }
+
+    // UI events of buttons
+    $('btnApply').addEventListener('click', ()=>{
+      BASE = $('apiBase').value.trim();
+      localStorage.setItem('g10_api_base', BASE);
+      appendLog('Base set to ' + BASE);
+      // Refresh UI status immediately after the application starts 
+      refreshStatus();
+    });
+    $('btnReset').addEventListener('click', resetDevices);
+    $('btnMock').addEventListener('click', mockTrigger);
+
+    // auto refresh
+    refreshStatus();
+    setInterval(refreshStatus, 2000);
+  </script>
+</body>
+</html>
